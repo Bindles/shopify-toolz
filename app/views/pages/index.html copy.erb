@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSV Management with Special Character Escaping</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    #search-container, #csv-options {
+      margin: 20px;
+    }
+    #search-bar {
+      width: 300px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    #suggestions {
+      margin-top: 5px;
+      border: 1px solid #ddd;
+      max-width: 300px;
+      border-radius: 5px;
+    }
+    .suggestion-item {
+      padding: 10px;
+      cursor: pointer;
+      background-color: #fff;
+    }
+    .suggestion-item:hover {
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <div id="search-container">
+    <input type="text" id="search-bar" placeholder="Type to search..." />
+    <div id="suggestions"></div>
+  </div>
+
+  <div id="csv-options">
+    <h3>Remove Columns:</h3>
+    <div id="column-list"></div>
+    <button id="download-csv">Download CSV</button>
+  </div>
+
+  <script>
+    // Function to escape special HTML characters
+    function escapeHtml(text) {
+      return text.replace(/[&<>"']/g, function (char) {
+        const escapeMap = {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        };
+        return escapeMap[char] || char;
+      });
+    }
+
+    // Fetch and parse the CSV
+    async function fetchCSV() {
+      const response = await fetch('/productsbc.csv'); // Path to the CSV in the public folder
+      const data = await response.text();
+      const rows = data.trim().split('\n');
+      const headers = rows[0].split(','); // Get CSV headers
+
+      // Find relevant fields (e.g., 'Title', 'Handle', 'Body_HTML')
+      const titleIndex = headers.indexOf('Title'); // Find the "Title" index
+      const handleIndex = headers.indexOf('Handle'); // Find the "Handle" index
+      const bodyHtmlIndex = headers.indexOf('body_html'); // Find the "body_html" index
+
+      // Map CSV rows to objects
+      return rows.slice(1).map(row => {
+        const columns = row.split(',');
+        return {
+          title: columns[titleIndex]?.trim(),
+          handle: columns[handleIndex]?.trim(),
+          bodyHtml: columns[bodyHtmlIndex]?.trim(),  // Correct field for body_html
+        };
+      });
+    }
+
+    // Function to render column options for removal
+    async function renderColumnOptions() {
+      const products = await fetchCSV();
+      const headers = Object.keys(products[0]);
+      const columnList = document.getElementById('column-list');
+
+      // Filter out the unnecessary fields (e.g., bodyHtml is handled separately)
+      const filteredHeaders = headers.filter(header => header !== 'originalRow' && header !== 'body_html');
+
+      filteredHeaders.forEach((header, index) => {
+        const div = document.createElement('div');
+        div.innerHTML = `
+          <input type="checkbox" id="remove-${index}" />
+          <label for="remove-${index}">${header}</label>
+        `;
+        columnList.appendChild(div);
+      });
+    }
+
+    // Function to handle column removal and export new CSV
+    function downloadCSV(products) {
+      const columnsToRemove = [];
+      document.querySelectorAll('#column-list input[type="checkbox"]:checked').forEach(checkbox => {
+        columnsToRemove.push(checkbox.nextElementSibling.textContent);
+      });
+
+      const filteredProducts = products.map(product => {
+        const columns = Object.entries(product).filter(([key]) => !columnsToRemove.includes(key));
+        return columns.map(([key, value]) => escapeHtml(value)).join(',');
+      });
+
+      const csvContent = filteredProducts.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'updated_products.csv';
+      a.click();
+    }
+
+    // Initialize search and column options
+    async function initSearch() {
+      const products = await fetchCSV();
+      const searchBar = document.getElementById('search-bar');
+      const suggestions = document.getElementById('suggestions');
+      const selectedHandle = document.getElementById('selected-handle');
+
+      // Display suggestions based on input
+      searchBar.addEventListener('input', () => {
+        const query = searchBar.value.toLowerCase();
+        suggestions.innerHTML = ''; // Clear previous suggestions
+        if (query) {
+          const filtered = products.filter(product =>
+            product.title.toLowerCase().includes(query)
+          );
+          filtered.forEach(product => {
+            const suggestion = document.createElement('div');
+            suggestion.className = 'suggestion-item';
+            suggestion.textContent = product.title;
+            suggestion.onclick = () => {
+              selectedHandle.textContent = product.handle;
+              suggestions.innerHTML = ''; // Clear suggestions after selection
+              searchBar.value = product.title; // Fill search bar with selected value
+            };
+            suggestions.appendChild(suggestion);
+          });
+        }
+      });
+
+      // Render column options
+      renderColumnOptions();
+
+      // Add event listener to download CSV
+      document.getElementById('download-csv').addEventListener('click', () => {
+        downloadCSV(products);
+      });
+    }
+
+    // Run the search initialization
+    initSearch();
+  </script>
+</body>
+</html>

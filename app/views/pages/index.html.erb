@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Search Autocomplete</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    #search-container {
+      margin: 20px;
+    }
+    #search-bar {
+      width: 300px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    #suggestions {
+      margin-top: 5px;
+      border: 1px solid #ddd;
+      max-width: 300px;
+      border-radius: 5px;
+    }
+    .suggestion-item {
+      padding: 10px;
+      cursor: pointer;
+      background-color: #fff;
+    }
+    .suggestion-item:hover {
+      background-color: #f0f0f0;
+    }
+    #handle-container {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <div id="search-container">
+    <input
+      type="text"
+      id="search-bar"
+      placeholder="Type to search..."
+    />
+    <div id="suggestions"></div>
+  </div>
+
+  <div id="handle-container">Selected Handle: <span id="selected-handle">None</span></div>
+
+  <script>
+    // Fetch and parse the CSV
+    async function fetchCSV() {
+      const response = await fetch('/products.csv'); // Path to the CSV in the public folder
+      const data = await response.text();
+      const rows = data.trim().split('\n');
+      const headers = rows[0].split(','); // Get CSV headers
+      const titleIndex = headers.indexOf('Title'); // Find the "Title" index
+      const handleIndex = headers.indexOf('Handle'); // Find the "Handle" index
+
+      // Map CSV rows to objects
+      return rows.slice(1).map(row => {
+        const columns = row.split(',');
+        return {
+          title: columns[titleIndex]?.trim(),
+          handle: columns[handleIndex]?.trim()
+        };
+      });
+    }
+
+    // Initialize search functionality
+    async function initSearch() {
+      const products = await fetchCSV();
+      const searchBar = document.getElementById('search-bar');
+      const suggestions = document.getElementById('suggestions');
+      const selectedHandle = document.getElementById('selected-handle');
+
+      // Display suggestions based on input
+      searchBar.addEventListener('input', () => {
+        const query = searchBar.value.toLowerCase();
+        suggestions.innerHTML = ''; // Clear previous suggestions
+        if (query) {
+          const filtered = products.filter(product =>
+            product.title.toLowerCase().includes(query)
+          );
+          filtered.forEach(product => {
+            const suggestion = document.createElement('div');
+            suggestion.className = 'suggestion-item';
+            suggestion.textContent = product.title;
+            suggestion.onclick = () => {
+              selectedHandle.textContent = product.handle;
+              suggestions.innerHTML = ''; // Clear suggestions after selection
+              searchBar.value = product.title; // Fill search bar with selected value
+            };
+            suggestions.appendChild(suggestion);
+          });
+        }
+      });
+    }
+
+    // Run the search initialization
+    initSearch();
+  </script>
+</body>
+</html>
